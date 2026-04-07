@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}标签分析 - 58找房数据分析系统{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">房源标签分析</h1>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                房源标签词云图
+            </div>
+            <!-- 在图表容器中添加加载指示器 -->
+            <div class="card-body">
+                <div id="tagCloudChart" style="height: 500px;">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">正在加载词云图...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                标签3D动态球形图
+            </div>
+            <div class="card-body">
+                <div id="tag3DChart" style="height: 500px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block head %}
+{{ super() }}
+<!-- 引入本地echarts-wordcloud插件 -->
+<script src="{{ url_for('static', filename='js/echarts-wordcloud.min.js') }}"></script>
+<!-- 引入本地echarts-gl插件用于3D图表 -->
+<script src="{{ url_for('static', filename='js/echarts-gl.min.js') }}"></script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 使用节流函数延迟初始化图表
+        var timer = null;
+        clearTimeout(timer);
+        timer = setTimeout(function() {
+            initCharts();
+        }, 100);
+        
+        function initCharts() {
+            console.log("DOM加载完成，开始初始化图表");
+            
+            // 准备标签数据
+            var tagData = [
+                {% for key, value in stats.tags_count.items() %}
+                {name: '{{ key }}', value: {{ value }}},
+                {% endfor %}
+            ];
+            
+            // 减少数据量，只取前20个标签，而不是30个
+            tagData = tagData.sort(function(a, b) {
+                return b.value - a.value;
+            }).slice(0, 20);
+            
+            // 检查是否有数据
+            if (tagData.length === 0) {
+                console.log("没有找到标签数据");
+                document.getElementById('tagCloudChart').innerHTML = '<div class="alert alert-warning">没有找到标签数据，请确保已爬取房源数据并包含标签信息。</div>';
+                document.getElementById('tag3DChart').innerHTML = '<div class="alert alert-warning">没有找到标签数据，请确保已爬取房源数据并包含标签信息。</div>';
+                return;
+            }
+
+            try {
+                // 词云图代码保持不变
+                var tagCloudChart = echarts.init(document.getElementById('tagCloudChart'), null, {
+                    renderer: 'canvas',
+                    useDirtyRect: true
+                });
+                
+                // 词云图配置保持不变
+                var tagCloudOption = {
+                    tooltip: {
+                        show: true,
+                        formatter: function(params) {
+                            return params.data.name + ': ' + params.data.value + '套';
+                        }
+                    },
+                    series: [{
+                        type: 'wordCloud',
+                        shape: 'circle',
+                        left: 'center',
+                        top: 'center',
+                        width: '90%',
+                        height: '90%',
+                        right: null,
+                        bottom: null,
+                        sizeRange: [12, 60],
+                        rotationRange: [-90, 90],
+                        rotationStep: 45,
+                        gridSize: 8,
+                        drawOutOfBound: false,
+                        textStyle: {
+                            fontFamily: 'sans-serif',
+                            fontWeight: 'bold',
+                            color: function() {
+                                // 随机颜色
+                                return 'rgb(' + [
+                                    Math.round(Math.random() * 160),
+                                    Math.round(Math.random() * 160),
+                                    Math.round(Math.random() * 160)
+                                ].join(',') + ')';
+                            }
+                        },
+                        emphasis: {
+                            textStyle: {
+                                shadowBlur: 10,
+                                shadowColor: '#333'
+                            }
+                        },
+                        data: tagData.sort(function(a, b) {
+                            return b.value - a.value;
+                        })
+                    }]
+                };
+                
+                // 使用异步渲染
+                setTimeout(function() {
+                    tagCloudChart.setOption(tagCloudOption);
+                    console.log("词云图初始化完成");
+                }, 0);
+                
+                // 修改3D图表配置，简化渲染
+                var tag3DChart = echarts.init(document.getElementById('tag3DChart'), null, {
+                    renderer: 'canvas',
+                    useDirtyRect: true
+                });
+                
+                // 简化3D图表配置
+                var tag3DOption = {
+                    backgroundColor: '#fff',
+                    grid3D: {
+                        show: false,
+                        viewControl: {
+                            autoRotate: true,
+                            autoRotateSpeed: 5,
+                            rotateSensitivity: 0.5
+                        },
+                        boxWidth: 100,
+                        boxHeight: 100,
+                        boxDepth: 100
+                    },
+                    xAxis3D: { show: false },
+                    yAxis3D: { show: false },
+                    zAxis3D: { show: false },
+                    series: [{
+                        type: 'scatter3D',
+                        coordinateSystem: 'cartesian3D',
+                        blendMode: 'source-over',
+                        symbolSize: function(val) {
+                            return Math.min(10, val[3] / 10);
+                        },
+                        itemStyle: {
+                            color: function(params) {
+                                // 使用固定颜色列表
+                                var colorList = ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de'];
+                                return colorList[params.dataIndex % colorList.length];
+                            },
+                            opacity: 0.7
+                        },
+                        label: {
+                            show: true,  // 修改这里：直接显示标签
+                            formatter: function(params) {
+                                return params.data.name;
+                            },
+                            position: 'right',
+                            textStyle: {
+                                color: '#000',
+                                fontSize: 10,
+                                backgroundColor: 'rgba(255,255,255,0.5)',
+                                padding: 2,
+                                borderRadius: 2
+                            },
+                            distance: 5
+                        },
+                        emphasis: {
+                            label: {
+                                fontSize: 12,
+                                fontWeight: 'bold'
+                            }
+                        },
+                        data: (function() {
+                            var data = [];
+                            var phi = Math.PI * (3 - Math.sqrt(5));
+                            
+                            for (var i = 0; i < tagData.length; i++) {
+                                var y = 1 - (i / (tagData.length - 1)) * 2;
+                                var radius = Math.sqrt(1 - y * y);
+                                var theta = phi * i;
+                                
+                                var x = Math.cos(theta) * radius;
+                                var z = Math.sin(theta) * radius;
+                                
+                                data.push({
+                                    name: tagData[i].name,
+                                    value: [x, y, z, tagData[i].value]
+                                });
+                            }
+                            return data;
+                        })()
+                    }]
+                };
+                
+                // 设置图表选项
+                tag3DChart.setOption(tag3DOption);
+                console.log("3D球形图初始化完成");
+                
+                // 添加窗口大小变化时的重绘
+                window.addEventListener('resize', function() {
+                    tagCloudChart.resize();
+                    tag3DChart.resize();
+                });
+                
+            } catch (error) {
+                console.error("图表初始化错误:", error);
+                document.getElementById('tagCloudChart').innerHTML = '<div class="alert alert-danger">图表初始化失败: ' + error.message + '</div>';
+                document.getElementById('tag3DChart').innerHTML = '<div class="alert alert-danger">图表初始化失败: ' + error.message + '</div>';
+            }
+        }
+    });
+</script>
+{% endblock %}

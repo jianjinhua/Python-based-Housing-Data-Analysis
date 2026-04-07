@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}价格分析 - 58找房数据分析系统{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">价格分析</h1>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary mb-3">
+            <div class="card-body">
+                <h5 class="card-title">平均总价</h5>
+                <p class="card-text display-6">{{ "%.2f"|format(stats.avg_total_price) }} 万</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success mb-3">
+            <div class="card-body">
+                <h5 class="card-title">平均单价</h5>
+                <p class="card-text display-6">{{ "%.2f"|format(stats.avg_unit_price) }} 元/㎡</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info mb-3">
+            <div class="card-body">
+                <h5 class="card-title">最高总价</h5>
+                <p class="card-text display-6">{{ "%.2f"|format(stats.max_total_price) }} 万</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning mb-3">
+            <div class="card-body">
+                <h5 class="card-title">最低总价</h5>
+                <p class="card-text display-6">{{ "%.2f"|format(stats.min_total_price) }} 万</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                总价分布
+            </div>
+            <div class="card-body">
+                <div id="totalPriceChart" style="height: 400px;"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                单价分布
+            </div>
+            <div class="card-body">
+                <div id="unitPriceChart" style="height: 400px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 总价分布图表
+        var totalPriceChart = echarts.init(document.getElementById('totalPriceChart'));
+        var totalPriceOption = {
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: {
+                    type: 'shadow'
+                }
+            },
+            grid: {
+                left: '3%',
+                right: '4%',
+                bottom: '3%',
+                containLabel: true
+            },
+            xAxis: {
+                type: 'category',
+                data: [
+                    {% for key in stats.price_distribution.keys() %}
+                    '{{ key }}',
+                    {% endfor %}
+                ],
+                axisLabel: {
+                    interval: 0,
+                    rotate: 30
+                }
+            },
+            yAxis: {
+                type: 'value',
+                name: '房源数量'
+            },
+            series: [
+                {
+                    name: '房源数量',
+                    type: 'bar',
+                    data: [
+                        {% for value in stats.price_distribution.values() %}
+                        {{ value }},
+                        {% endfor %}
+                    ]
+                }
+            ]
+        };
+        totalPriceChart.setOption(totalPriceOption);
+
+        // 单价分布图表
+        var unitPriceChart = echarts.init(document.getElementById('unitPriceChart'));
+        var unitPriceOption = {
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: {
+                    type: 'shadow'
+                }
+            },
+            grid: {
+                left: '3%',
+                right: '4%',
+                bottom: '3%',
+                containLabel: true
+            },
+            xAxis: {
+                type: 'category',
+                data: [
+                    {% for key in stats.unit_price_distribution.keys() %}
+                    '{{ key }}',
+                    {% endfor %}
+                ],
+                axisLabel: {
+                    interval: 0,
+                    rotate: 30
+                }
+            },
+            yAxis: {
+                type: 'value',
+                name: '房源数量'
+            },
+            series: [
+                {
+                    name: '房源数量',
+                    type: 'bar',
+                    data: [
+                        {% for value in stats.unit_price_distribution.values() %}
+                        {{ value }},
+                        {% endfor %}
+                    ]
+                }
+            ]
+        };
+        unitPriceChart.setOption(unitPriceOption);
+
+        // 窗口大小变化时重新调整图表大小
+        window.addEventListener('resize', function() {
+            totalPriceChart.resize();
+            unitPriceChart.resize();
+        });
+    });
+</script>
+{% endblock %}

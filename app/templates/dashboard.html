@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}仪表盘 - 58找房数据分析系统{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">仪表盘</h1>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary mb-3">
+            <div class="card-body">
+                <h5 class="card-title">房源总数</h5>
+                <p class="card-text display-6">{{ data.total_houses }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success mb-3">
+            <div class="card-body">
+                <h5 class="card-title">平均总价</h5>
+                <p class="card-text display-6">{{ "%.2f"|format(data.avg_price) }} 万</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info mb-3">
+            <div class="card-body">
+                <h5 class="card-title">平均单价</h5>
+                <p class="card-text display-6">{{ "%.2f"|format(data.avg_unit_price) }} 元/㎡</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning mb-3">
+            <div class="card-body">
+                <h5 class="card-title">平均面积</h5>
+                <p class="card-text display-6">{{ "%.2f"|format(data.avg_area) }} ㎡</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                户型分布
+            </div>
+            <div class="card-body">
+                <div id="roomTypeChart" style="height: 300px;"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                朝向分布
+            </div>
+            <div class="card-body">
+                <div id="directionChart" style="height: 300px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                楼层分布
+            </div>
+            <div class="card-body">
+                <div id="floorChart" style="height: 300px;"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                房源标签分布
+            </div>
+            <div class="card-body">
+                <div id="tagsChart" style="height: 300px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 使用延迟加载策略
+        setTimeout(function() {
+            initCharts();
+        }, 100);
+        
+        function initCharts() {
+            // 户型分布图表 - 修改为与area.html一致
+            var roomTypeChart = echarts.init(document.getElementById('roomTypeChart'), null, {
+                renderer: 'canvas',
+                useDirtyRect: true
+            });
+            var roomTypeOption = {
+                tooltip: {
+                    trigger: 'item',
+                    formatter: '{a} <br/>{b}: {c} ({d}%)'
+                },
+                legend: {
+                    orient: 'horizontal',  // 改为水平布局
+                    bottom: 10,            // 移到底部
+                    type: 'scroll',        // 启用滚动
+                    pageIconSize: 12,      // 减小翻页按钮
+                    data: [{% for key in data.room_type_counts.keys() %}'{{ key }}',{% endfor %}]
+                },
+                series: [
+                    {
+                        name: '户型分布',
+                        type: 'pie',
+                        radius: ['50%', '70%'],
+                        avoidLabelOverlap: false,
+                        label: {
+                            show: false,
+                            position: 'center'
+                        },
+                        emphasis: {
+                            label: {
+                                show: true,
+                                fontSize: '18',
+                                fontWeight: 'bold'
+                            }
+                        },
+                        labelLine: {
+                            show: false
+                        },
+                        data: [
+                            {% for key, value in data.room_type_counts.items() %}
+                            {value: {{ value }}, name: '{{ key }}'},
+                            {% endfor %}
+                        ]
+                    }
+                ]
+            };
+            roomTypeChart.setOption(roomTypeOption);
+        } // 这里添加了闭合大括号
+
+        // 朝向分布图表
+        var directionChart = echarts.init(document.getElementById('directionChart'));
+        var directionOption = {
+            tooltip: {
+                trigger: 'item',
+                formatter: '{a} <br/>{b}: {c} ({d}%)'
+            },
+            legend: {
+                orient: 'vertical',
+                left: 10,
+                data: [{% for key in data.direction_counts.keys() %}'{{ key }}',{% endfor %}]
+            },
+            series: [
+                {
+                    name: '朝向分布',
+                    type: 'pie',
+                    radius: ['50%', '70%'],
+                    avoidLabelOverlap: false,
+                    label: {
+                        show: false,
+                        position: 'center'
+                    },
+                    emphasis: {
+                        label: {
+                            show: true,
+                            fontSize: '18',
+                            fontWeight: 'bold'
+                        }
+                    },
+                    labelLine: {
+                        show: false
+                    },
+                    data: [
+                        {% for key, value in data.direction_counts.items() %}
+                        {value: {{ value }}, name: '{{ key }}'},
+                        {% endfor %}
+                    ]
+                }
+            ]
+        };
+        directionChart.setOption(directionOption);
+
+        // 楼层分布图表
+        var floorChart = echarts.init(document.getElementById('floorChart'));
+        var floorOption = {
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: {
+                    type: 'shadow'
+                }
+            },
+            grid: {
+                left: '3%',
+                right: '4%',
+                bottom: '3%',
+                containLabel: true
+            },
+            xAxis: {
+                type: 'category',
+                data: [{% for key in data.floor_counts.keys() %}'{{ key }}',{% endfor %}]
+            },
+            yAxis: {
+                type: 'value'
+            },
+            series: [
+                {
+                    name: '楼层分布',
+                    type: 'bar',
+                    data: [{% for value in data.floor_counts.values() %}{{ value }},{% endfor %}]
+                }
+            ]
+        };
+        floorChart.setOption(floorOption);
+
+        // 移除区域分布图表代码，只保留标签分布图表
+        var tagsChart = echarts.init(document.getElementById('tagsChart'));
+        var tagsOption = {
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: {
+                    type: 'shadow'
+                }
+            },
+            grid: {
+                left: '3%',
+                right: '4%',
+                bottom: '3%',
+                containLabel: true
+            },
+            xAxis: {
+                type: 'category',
+                data: {{ data.tags_stats.labels|tojson }},
+                axisLabel: {
+                    interval: 0,
+                    rotate: 45
+                }
+            },
+            yAxis: {
+                type: 'value'
+            },
+            series: [
+                {
+                    name: '标签分布',
+                    type: 'bar',
+                    data: {{ data.tags_stats.counts|tojson }}
+                }
+            ]
+        };
+        tagsChart.setOption(tagsOption);
+
+        // 窗口大小变化时重新调整图表大小
+        window.addEventListener('resize', function() {
+            roomTypeChart.resize();
+            directionChart.resize();
+            floorChart.resize();
+            tagsChart.resize();  // 替换 districtChart 为 tagsChart
+        });
+    });
+</script>
+
+{% endblock %}

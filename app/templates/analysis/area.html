@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}面积分析 - 58找房数据分析系统{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">面积分析</h1>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary mb-3">
+            <div class="card-body">
+                <h5 class="card-title">平均面积</h5>
+                <p class="card-text display-6">{{ "%.2f"|format(stats.avg_area) }} ㎡</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success mb-3">
+            <div class="card-body">
+                <h5 class="card-title">最大面积</h5>
+                <p class="card-text display-6">{{ "%.2f"|format(stats.max_area) }} ㎡</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info mb-3">
+            <div class="card-body">
+                <h5 class="card-title">最小面积</h5>
+                <p class="card-text display-6">{{ "%.2f"|format(stats.min_area) }} ㎡</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                面积分布
+            </div>
+            <div class="card-body">
+                <div id="areaChart" style="height: 400px;"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                户型分布
+            </div>
+            <div class="card-body">
+                <div id="roomTypeChart" style="height: 400px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 使用延迟加载策略
+        setTimeout(function() {
+            initCharts();
+        }, 100);
+        
+        function initCharts() {
+            // 面积分布图表
+            var areaChart = echarts.init(document.getElementById('areaChart'), null, {
+                renderer: 'canvas',  // 使用canvas渲染器
+                useDirtyRect: true   // 启用脏矩形优化
+            });
+            var areaOption = {
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'shadow'
+                    }
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: [
+                        {% for key in stats.area_distribution.keys() %}
+                        '{{ key }}',
+                        {% endfor %}
+                    ],
+                    axisLabel: {
+                        interval: 0,
+                        rotate: 30
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: '房源数量'
+                },
+                series: [
+                    {
+                        name: '房源数量',
+                        type: 'bar',
+                        data: [
+                            {% for value in stats.area_distribution.values() %}
+                            {{ value }},
+                            {% endfor %}
+                        ]
+                    }
+                ]
+            };
+            areaChart.setOption(areaOption);
+
+            // 户型分布图表 - 延迟100ms加载第二个图表
+            setTimeout(function() {
+                var roomTypeChart = echarts.init(document.getElementById('roomTypeChart'), null, {
+                    renderer: 'canvas',
+                    useDirtyRect: true
+                });
+                var roomTypeOption = {
+                    tooltip: {
+                        trigger: 'item',
+                        formatter: '{a} <br/>{b}: {c} ({d}%)'
+                    },
+                    legend: {
+                        orient: 'horizontal',  // 改为水平布局减少占用空间
+                        bottom: 10,            // 移到底部
+                        type: 'scroll',        // 启用滚动以处理大量数据
+                        pageIconSize: 12,      // 减小翻页按钮
+                        data: [
+                            {% for key in stats.room_type_distribution.keys() %}
+                            '{{ key }}',
+                            {% endfor %}
+                        ]
+                    },
+                    series: [
+                        {
+                            name: '户型分布',
+                            type: 'pie',
+                            radius: ['50%', '70%'],
+                            avoidLabelOverlap: false,
+                            label: {
+                                show: false,
+                                position: 'center'
+                            },
+                            emphasis: {
+                                label: {
+                                    show: true,
+                                    fontSize: '18',
+                                    fontWeight: 'bold'
+                                }
+                            },
+                            labelLine: {
+                                show: false
+                            },
+                            data: [
+                                {% for key, value in stats.room_type_distribution.items() %}
+                                {value: {{ value }}, name: '{{ key }}'},
+                                {% endfor %}
+                            ]
+                        }
+                    ]
+                };
+                roomTypeChart.setOption(roomTypeOption);
+                
+                // 窗口大小变化时重新调整图表大小
+                window.addEventListener('resize', function() {
+                    areaChart.resize();
+                    roomTypeChart.resize();
+                });
+            }, 100);
+        }
+    });
+</script>
+{% endblock %}

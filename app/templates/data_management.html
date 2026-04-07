@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}数据管理 - 58找房数据分析系统{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">数据管理</h1>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                数据状态
+            </div>
+            <div class="card-body">
+                <p><strong>数据总量：</strong> <span id="totalHouses">{{ total_houses }}</span> 条</p>
+                <p><strong>最后更新时间：</strong> 
+                    {% if last_update_time %}
+                        {{ last_update_time.strftime('%Y-%m-%d %H:%M:%S') }}
+                    {% else %}
+                        暂无数据
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                爬虫控制
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('main.start_spider') }}" method="post" id="spiderForm" class="mb-3">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="pages" class="form-label">爬取页数</label>
+                            <input type="number" class="form-control" id="pages" name="pages" min="1" max="500" value="">
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex">
+                        <button type="submit" class="btn btn-primary me-2" id="startSpiderBtn" {% if spider_running %}disabled{% endif %}>
+                            <i class="fas fa-play"></i> 启动爬虫
+                        </button>
+                        
+                        <form action="{{ url_for('main.stop_spider') }}" method="post" class="d-inline">
+                            <button type="submit" class="btn btn-danger" id="stopSpiderBtn" {% if not spider_running %}disabled{% endif %}>
+                                <i class="fas fa-stop"></i> 停止爬虫
+                            </button>
+                        </form>
+                    </div>
+                </form>
+                
+                <hr>
+                
+                <form action="{{ url_for('main.clear_data') }}" method="post">
+                    <p class="text-muted text-danger">此操作将清空所有房源数据，请谨慎操作！</p>
+                    <button type="submit" class="btn btn-danger" onclick="return confirm('警告：此操作将清空所有房源数据，且无法恢复！确定要继续吗？')">
+                        <i class="fas fa-trash-alt"></i> 清空数据
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 爬虫进度和输出 -->
+<div class="row mb-4" id="spiderProgressSection" style="display: {% if spider_running %}block{% else %}none{% endif %};">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>爬虫进度</span>
+                <button class="btn btn-sm btn-outline-secondary" id="clearOutputBtn">
+                    <i class="fas fa-eraser"></i> 清空输出
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="progress mb-3">
+                    <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                </div>
+                <p id="progressText">准备中...</p>
+                
+                <div class="mt-3">
+                    <pre id="spiderOutput" style="height: 400px; overflow-y: auto; background-color: #f8f9fa; padding: 10px; border-radius: 5px; font-size: 0.9rem;"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 数据查询区域 -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                数据查询
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('main.search_houses') }}" method="get" class="mb-3">
+                    <div class="input-group">
+                        <input type="text" class="form-control" name="keyword" placeholder="输入关键词搜索房源（小区名、地址、户型等）" value="{{ request.args.get('keyword', '') }}">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="fas fa-search"></i> 搜索
+                        </button>
+                    </div>
+                </form>
+                
+                <div class="mt-3">
+                    <a href="{{ url_for('main.search_houses') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-list"></i> 查看所有数据
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const progressSection = document.getElementById('spiderProgressSection');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const outputElement = document.getElementById('spiderOutput');
+        const startBtn = document.getElementById('startSpiderBtn');
+        const stopBtn = document.getElementById('stopSpiderBtn');
+        const clearOutputBtn = document.getElementById('clearOutputBtn');
+        
+        let outputInterval = null;
+        let isSpiderRunning = {{ 'true' if spider_running else 'false' }};
+        
+        // 如果爬虫正在运行，显示进度区域并开始轮询
+        if (isSpiderRunning) {
+            progressSection.style.display = 'block';
+            startPolling();
+        }
+        
+        // 点击启动按钮时显示进度区域
+        document.getElementById('spiderForm').addEventListener('submit', function() {
+            progressSection.style.display = 'block';
+            outputElement.textContent = '爬虫启动中...\n';
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            isSpiderRunning = true;
+            
+            // 延迟一秒后开始轮询输出
+            setTimeout(startPolling, 1000);
+        });
+        
+        // 清空输出按钮
+        clearOutputBtn.addEventListener('click', function() {
+            outputElement.textContent = '';
+        });
+        
+        // 开始轮询
+        function startPolling() {
+            pollSpiderOutput();
+            // 每秒轮询一次
+            outputInterval = setInterval(pollSpiderOutput, 1000);
+        }
+        
+        // 轮询爬虫输出
+        function pollSpiderOutput() {
+            fetch('{{ url_for("main.api_spider_output") }}')
+                .then(response => response.json())
+                .then(data => {
+                    // 更新输出
+                    if (data.output) {
+                        outputElement.textContent += data.output;
+                        // 自动滚动到底部
+                        outputElement.scrollTop = outputElement.scrollHeight;
+                    }
+                    
+                    // 更新进度条
+                    const progress = data.progress;
+                    progressBar.style.width = progress.percent + '%';
+                    progressBar.setAttribute('aria-valuenow', progress.percent);
+                    
+                    if (progress.total > 0) {
+                        progressText.textContent = `进度: ${progress.current}/${progress.total} 页 (${progress.percent}%)`;
+                    } else {
+                        progressText.textContent = '准备中...';
+                    }
+                    
+                    // 如果爬虫已完成，停止轮询
+                    if (!progress.running && isSpiderRunning) {
+                        clearInterval(outputInterval);
+                        outputInterval = null;
+                        isSpiderRunning = false;
+                        startBtn.disabled = false;
+                        stopBtn.disabled = true;
+                        
+                        // 刷新数据总量
+                        setTimeout(function() {
+                            fetch('{{ url_for("main.data_management") }}')
+                                .then(response => response.text())
+                                .then(html => {
+                                    const parser = new DOMParser();
+                                    const doc = parser.parseFromString(html, 'text/html');
+                                    const totalHouses = doc.getElementById('totalHouses').textContent;
+                                    document.getElementById('totalHouses').textContent = totalHouses;
+                                });
+                        }, 1000);
+                    }
+                })
+                .catch(error => {
+                    console.error('获取爬虫输出失败:', error);
+                    if (outputInterval) {
+                        clearInterval(outputInterval);
+                        outputInterval = null;
+                    }
+                    outputElement.textContent += '\n\n获取爬虫输出失败: ' + error.message + '\n';
+                });
+        }
+    });
+</script>
+{% endblock %}
